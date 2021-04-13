@@ -1,4 +1,7 @@
 from typing import List, Set, Dict, Union, Iterable
+from pathlib import Path
+import os
+import json
 
 
 class Option:
@@ -47,8 +50,16 @@ class Option:
         sign = '+' if self.is_positive() else ''
         return f'{self.option_type} {sign}{self.value}'
 
+    def to_dict(self):
+        return {self.option_type: self.value}
+
 
 class OptionSpec:
+    @staticmethod
+    def from_dict(d):
+        options = [Option(k, v) for k, v in d.items()]
+        return OptionSpec(options)
+
     @staticmethod
     def _pack_options(options: Iterable[Option]) -> Dict[str, Option]:
         packed = {}
@@ -111,14 +122,28 @@ class OptionSpec:
         s = ' / '.join(map(str, self.options.values()))
         return f'{{{s}}}'
 
+    def to_dict(self):
+        result = {}
+        for opt in self.options.values():
+            result.update(opt.to_dict())
+        return result
+
 
 class Item:
     item_types = ('모자', '갑옷', '장갑', '신발', '벨트', '반지', '무기', '목걸이')
 
-    def __init__(self, item_type: str, options: Union[OptionSpec, Iterable[Option]]):
+    @staticmethod
+    def from_dict(d):
+        item = Item(d['item_type'])
+        item.pos_options = OptionSpec.from_dict(d['positive_options'])
+        item.neg_options = OptionSpec.from_dict(d['negative_options'])
+        return item
+
+    def __init__(self, item_type: str, options: Union[OptionSpec, Iterable[Option]] = None):
         assert item_type in self.item_types, f'잘못된 아이템 타입입니다: `{item_type}`'
         self.item_type = item_type
 
+        options = options or list()
         self.pos_options = OptionSpec([opt for opt in options if opt.is_positive()])
         self.neg_options = OptionSpec([opt for opt in options if not opt.is_positive()])
 
@@ -137,11 +162,24 @@ class Item:
         tgt = self.pos_options if option.is_positive() else self.neg_options
         return tgt.remove_option(option)
 
+    def __eq__(self, other):
+        return isinstance(other, Item) and \
+               self.item_type == other.item_type and \
+               self.pos_options == other.pos_options and \
+               self.neg_options == other.neg_options
+
     def __repr__(self):
         pos = ' / '.join(map(str, self.pos_options))
         neg = ' / '.join(map(str, self.neg_options))
         neg = f' / {{{neg}}}' if len(self.neg_options) > 0 else ''
         return f'Item[{self.item_type}] - {{{pos}}}{neg}'
+
+    def to_dict(self):
+        return {
+            'item_type': self.item_type,
+            'positive_options': self.pos_options.to_dict(),
+            'negative_options': self.neg_options.to_dict()
+        }
 
 
 class ItemSet:
@@ -164,6 +202,47 @@ class ItemSet:
         stat = list(self.get_spec())
         items = ''.join([f'\n - {x}' for x in self.items])
         return f'ItemSet: {stat}{items}'
+
+    def to_dict(self):
+        return {item.item_type: item.to_dict() for item in self.items}
+
+
+class ItemManager:
+    def __init__(self):
+        self.data_dir = Path('data')
+        self.file_name = 'item.json'
+        self.file_path = self.data_dir / self.file_name
+        os.makedirs(self.data_dir, exist_ok=True)
+
+        self.item_list = list()
+        self.load_item()
+
+    def load_item(self):
+        if self.file_path.exists():
+            with open(self.file_path, 'r', encoding='utf-8') as f:
+                items = json.load(f)
+            self.item_list = [Item.from_dict(d) for d in items]
+
+    def save_item(self):
+        with open(self.file_path, 'w', encoding='utf-8') as f:
+            json.dump([item.to_dict() for item in self.item_list], f, ensure_ascii=False)
+
+    def add_item(self, item: Item, write_back=True):
+        self.item_list.append(item)
+        if write_back:
+            self.save_item()
+
+    def pop_item(self, idx: int) -> bool:
+        if not (0 <= idx < len(self.item_list)):
+            return False
+        self.item_list.pop(idx)
+        return True
+
+    def remove_item(self, item: Item) -> bool:
+        if item not in self.item_list:
+            return False
+        self.item_list.remove(item)
+        return True
 
 
 if __name__ == '__main__':

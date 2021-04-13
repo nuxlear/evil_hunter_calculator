@@ -23,6 +23,15 @@ class OptionTest(unittest.TestCase):
         subtracted = OptionSpec([Option('공', 3), Option('공속', 16), Option('흡', 5), Option('방', -7), Option('체', -21)])
         self.assertEqual(subtracted, OptionSpec(options1) - OptionSpec(options2))
 
+    def test_optionspec_2(self):
+        options1 = OptionSpec([Option('공', 3), Option('공속', 11), Option('체', 5)])
+        options2 = OptionSpec([Option('방', -5), Option('공속', 8), Option('회', 5)])
+
+        self.assertEqual({'공': 3, '공속': 11, '체': 5}, options1.to_dict())
+
+        d = {'방': -5, '공속': 8, '회': 5}
+        self.assertEqual(options2, OptionSpec.from_dict(d))
+
 
 class ItemTest(unittest.TestCase):
     def test_item_1(self):
@@ -35,6 +44,10 @@ class ItemTest(unittest.TestCase):
         self.assertEqual(OptionSpec([Option('공속', 5), Option('체', 5), Option('회', 10)]), item1.get_spec())
 
         self.assertEqual('Item[장갑] - {공속 +5 / 체 +15 / 회 +10} / {체 -10}', str(item1))
+
+    def test_item_2(self):
+        item1 = Item('장갑', [Option('공속', -5), Option('방', 7), Option('체', 21)])
+        self.assertEqual(item1, Item.from_dict(item1.to_dict()))
 
     def test_itemset_1(self):
         item_set1 = ItemSet([
